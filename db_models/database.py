@@ -3,7 +3,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 # PostgreSQL database URL (Render)
-DATABASE_URL = "postgresql://appreciate_user:kHIMjfKLG7aMAU7bdKxJYPGU8SCWcZmD@dpg-d394lj0dl3ps73akuh00-a/appreciate"
+DATABASE_URL = "postgresql://appreciate_7oil_user:3GWa9K8BhmOchwTkQKnPTIbD1dwzawzg@dpg-d3b6pit6ubrc739gdd5g-a/appreciate_7oil"
 
 # No connect_args for PostgreSQL
 engine = create_engine(DATABASE_URL)
