@@ -4,7 +4,7 @@ from sqlalchemy import func
 from typing import Optional
 from routes.auth import get_db
 from db_models.social import Post, Like, Comment, Saved
-from baseModels.post_models import PostCreate, PostUpdate, PostOut
+from baseModels.post_models import PostCreate
 
 router = APIRouter(
     tags=["Posts"]
@@ -34,16 +34,13 @@ def get_posts(
     page_size = 5
     offset = (page - 1) * page_size
 
-    # ✅ If no user_id provided → ask for login
     if not user_id:
         raise HTTPException(status_code=401, detail="Please login to view posts")
 
-    # Fetch posts sorted by newest first
     posts = (
         db.query(Post)
         .order_by(Post.created_at.desc())
         .offset(offset)
-        .limit(page_size)   # <-- missing before
         .all()
     )
 
@@ -59,7 +56,6 @@ def get_posts(
             .all()
         )
 
-        # ✅ Check if current user already liked the post
         is_liked = (
             db.query(Like)
             .filter(Like.post_id == post.id, Like.user_id == user_id)
@@ -67,7 +63,6 @@ def get_posts(
             is not None
         )
 
-        # ✅ Check if current user saved the post
         is_saved = (
             db.query(Saved)
             .filter(Saved.post_id == post.id, Saved.user_id == user_id)
@@ -81,11 +76,11 @@ def get_posts(
             "image_url": post.image_url,
             "created_at": post.created_at,
             "user_id": post.user_id,
-            "user_name":post.user.name,
+            "user_name": post.user.name,
             "like_count": like_count,
             "comment_count": comment_count,
             "is_liked_by_you": is_liked,
-            "is_saved_by_you": is_saved,   # 👈 NEW FIELD
+            "is_saved_by_you": is_saved,
             "top_comments": [
                 {
                     "id": c.id,
@@ -102,3 +97,25 @@ def get_posts(
         "page_size": page_size,
         "posts": response
     }
+
+
+# ✅ Delete a post
+@router.delete("/")
+def delete_post(
+    post_id: int = Query(...),
+    user_id: int = Query(...),
+    db: Session = Depends(get_db)
+):
+    post = db.query(Post).filter(Post.id == post_id, Post.user_id == user_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found or not owned by user")
+
+    # Delete related likes, comments, saved first (optional, depending on cascade rules)
+    db.query(Like).filter(Like.post_id == post_id).delete()
+    db.query(Comment).filter(Comment.post_id == post_id).delete()
+    db.query(Saved).filter(Saved.post_id == post_id).delete()
+
+    db.delete(post)
+    db.commit()
+
+    return {"detail": "Post deleted successfully"}
