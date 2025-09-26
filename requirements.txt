@@ -1,0 +1,8 @@
+fastapi[standard]
+uvicorn[standard]
+python-dotenv
+sqlalchemy
+python-multipart
+passlib[bcrypt]
+requests
+psycopg2-binary
