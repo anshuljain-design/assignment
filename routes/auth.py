@@ -3,13 +3,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from baseModels.auth_model import SignupModel, LoginModel
 from db_models import database, user
-from passlib.context import CryptContext
 from validators.auth_validators import *
 
 router = APIRouter()
-
-# Set up password hasher (force bcrypt)
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Dependency to get DB session
 def get_db():
@@ -18,16 +14,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
-# Helper functions
-def get_password_hash(password: str) -> str:
-    # truncate to 72 bytes for bcrypt safety
-    return pwd_context.hash(password[:72], scheme="bcrypt")
-
-def verify_password(plain: str, hashed: str) -> bool:
-    # truncate plain password as well
-    return pwd_context.verify(plain[:72], hashed)
-
 
 # ===== SIGNUP =====
 @router.post("/signup")
@@ -46,12 +32,11 @@ def signup(user_data: SignupModel, db: Session = Depends(get_db)):
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    # Save user
-    hashed_pw = get_password_hash(password)
+    # Save user (plain password)
     new_user = user.User(
         email=email,
         name=name,
-        hashed_password=hashed_pw
+        hashed_password=password  # store password directly
     )
     db.add(new_user)
     db.commit()
@@ -74,7 +59,7 @@ def login(login_data: LoginModel, db: Session = Depends(get_db)):
     validate_password(password)
 
     db_user = db.query(user.User).filter(user.User.email == email).first()
-    if not db_user or not verify_password(password, db_user.hashed_password):
+    if not db_user or db_user.hashed_password != password:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     return {
