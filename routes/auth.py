@@ -8,10 +8,10 @@ from validators.auth_validators import *
 
 router = APIRouter()
 
-# Password hasher
+# Set up password hasher (force bcrypt)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# DB session dependency
+# Dependency to get DB session
 def get_db():
     db = database.SessionLocal()
     try:
@@ -19,46 +19,57 @@ def get_db():
     finally:
         db.close()
 
-# Helper functions (truncate passwords to 72 bytes for bcrypt)
+# Helper functions
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password[:72])  # truncate to 72 bytes
+    # truncate to 72 bytes for bcrypt safety
+    return pwd_context.hash(password[:72], scheme="bcrypt")
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain[:72], hashed)  # truncate to 72 bytes
+    # truncate plain password as well
+    return pwd_context.verify(plain[:72], hashed)
 
-# ----------------- Routes -----------------
 
+# ===== SIGNUP =====
 @router.post("/signup")
 def signup(user_data: SignupModel, db: Session = Depends(get_db)):
     email = user_data.email.strip().lower()
     name = user_data.name.strip().title()
     password = user_data.password.strip()
 
-    # Validate inputs
+    # Validation
     validate_email(email)
     validate_name(name)
     validate_password(password)
 
-    # Check if user exists
-    if db.query(user.User).filter(user.User.email == email).first():
+    # Check if email exists
+    existing_user = db.query(user.User).filter(user.User.email == email).first()
+    if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    # Create user
+    # Save user
     hashed_pw = get_password_hash(password)
-    new_user = user.User(email=email, name=name, hashed_password=hashed_pw)
+    new_user = user.User(
+        email=email,
+        name=name,
+        hashed_password=hashed_pw
+    )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
 
-    return {"detail": "User registered successfully", "user_id": new_user.id, "name": new_user.name}
+    return {
+        "detail": "User registered successfully",
+        "user_id": new_user.id,
+        "name": new_user.name
+    }
 
 
+# ===== LOGIN =====
 @router.post("/login")
 def login(login_data: LoginModel, db: Session = Depends(get_db)):
     email = login_data.email.strip().lower()
     password = login_data.password.strip()
 
-    # Validate inputs
     validate_email(email)
     validate_password(password)
 
@@ -66,11 +77,20 @@ def login(login_data: LoginModel, db: Session = Depends(get_db)):
     if not db_user or not verify_password(password, db_user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    return {"detail": "Login Successful", "user_id": db_user.id, "name": db_user.name}
+    return {
+        "detail": "Login Successful",
+        "user_id": db_user.id,
+        "name": db_user.name
+    }
 
 
+# ===== SEARCH USERS =====
 @router.get("/search")
-def find_user(searched: str = "", user_id: int = 0, db: Session = Depends(get_db)):
+def find_user(
+    searched: str = "",
+    user_id: int = 0,
+    db: Session = Depends(get_db)
+):
     User = user.User
 
     if searched.strip() == "":
