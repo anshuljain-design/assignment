@@ -6,4 +6,4 @@ python-multipart
 passlib[bcrypt]
 requests
 psycopg2-binary
-fsatapi-mail
+fastapi-mail
